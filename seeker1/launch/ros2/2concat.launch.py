@@ -23,8 +23,7 @@ def generate_launch_description():
     # ...
 
     seeker_share_dir = get_package_share_directory('seeker')
-    default_calib_path = os.path.join(
-        seeker_share_dir, 'config', LaunchConfiguration('config'), 'kalibr_cam_chain.yaml')
+    default_calib_path = "/home/iadc/Desktop/seeker_ws/src/seeker1/seeker1/config/kalibr_cam_chain.yaml"
 
     declare_calib_path_arg = DeclareLaunchArgument(
         'stereo_params_camchain',

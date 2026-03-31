@@ -143,58 +143,80 @@ def quaternion_to_rotation_matrix(qw, qx, qy, qz, tx, ty, tz):
 
 def get_camera_info(cam):
     output = dict()
-    output["T_cam_imu"] = quaternion_to_rotation_matrix(
+    
+    # --- 关键修改 1：将 4x4 矩阵扁平化为 16 元素的列表 ---
+    t_cam_imu = quaternion_to_rotation_matrix(
         cam.T_cam_imu_se3_qw, cam.T_cam_imu_se3_qx,
         cam.T_cam_imu_se3_qy, cam.T_cam_imu_se3_qz,
         cam.T_cam_imu_se3_x, cam.T_cam_imu_se3_y, cam.T_cam_imu_se3_z
-    ).tolist()
-    output["T_imu_cam"] = inv_T(np.mat(quaternion_to_rotation_matrix(
-        cam.T_cam_imu_se3_qw, cam.T_cam_imu_se3_qx,
-        cam.T_cam_imu_se3_qy, cam.T_cam_imu_se3_qz,
-        cam.T_cam_imu_se3_x, cam.T_cam_imu_se3_y, cam.T_cam_imu_se3_z
-    ))).tolist()
-    output["T_cn_cnm1"] = quaternion_to_rotation_matrix(
+    )
+    output["T_cam_imu"] = t_cam_imu.flatten().tolist()
+    
+    t_imu_cam = inv_T(np.mat(t_cam_imu))
+    output["T_imu_cam"] = np.array(t_imu_cam).flatten().tolist()
+    
+    t_cn_cnm1 = quaternion_to_rotation_matrix(
         cam.T_cn_cnm1_se3_qw, cam.T_cn_cnm1_se3_qx,
         cam.T_cn_cnm1_se3_qy, cam.T_cn_cnm1_se3_qz,
         cam.T_cn_cnm1_se3_x, cam.T_cn_cnm1_se3_y, cam.T_cn_cnm1_se3_z
-    ).tolist()
-    output["distortion_coeffs"] = np.array([cam.distortion_coeffs_k1, cam.distortion_coeffs_k2,
-                  cam.distortion_coeffs_p1, cam.distortion_coeffs_p2,
-                  cam.distortion_coeffs_k3]).tolist()
-    if (cam.camera_model == 4) :
-        output["intrinsics"] = np.array([cam.intrinsics_xi, cam.intrinsics_fx,
-                    cam.intrinsics_fy, cam.intrinsics_cx,
-                    cam.intrinsics_cy]).tolist()
-    else :
-        output["intrinsics"] = np.array([cam.intrinsics_fx,
-                    cam.intrinsics_fy, cam.intrinsics_cx,
-                    cam.intrinsics_cy]).tolist()
-    output["resolution"] = [cam.resolution_width, cam.resolution_height]
+    )
+    output["T_cn_cnm1"] = t_cn_cnm1.flatten().tolist()
 
-    if (cam.camera_model == 4) :
+    # --- 关键修改 2：确保所有数值都是 float (带 .0) ---
+    output["distortion_coeffs"] = [float(cam.distortion_coeffs_k1), float(cam.distortion_coeffs_k2),
+                                  float(cam.distortion_coeffs_p1), float(cam.distortion_coeffs_p2),
+                                  float(cam.distortion_coeffs_k3)]
+    
+    if (cam.camera_model == 4):
+        # omni 模型需要 xi, fx, fy, cx, cy
+        output["intrinsics"] = [float(cam.intrinsics_xi), float(cam.intrinsics_fx),
+                                float(cam.intrinsics_fy), float(cam.intrinsics_cx),
+                                float(cam.intrinsics_cy)]
+    else:
+        output["intrinsics"] = [float(cam.intrinsics_fx), float(cam.intrinsics_fy),
+                                float(cam.intrinsics_cx), float(cam.intrinsics_cy)]
+    
+    # 强制分辨率为 float 列表，防止 ROS 2 插件解析失败
+    output["resolution"] = [float(cam.resolution_width), float(cam.resolution_height)]
+
+    if (cam.camera_model == 4):
         output["camera_model"] = "omni"
         output["distortion_model"] = "radtan"
-    if (cam.camera_model == 0) :
+    elif (cam.camera_model == 0):
         output["camera_model"] = "pinhole"
         output["distortion_model"] = "radtan"
+        
     output["timeshift_cam_imu"] = 0.0
     return output
 
-def get_kalibr_yaml(cali, output_path):
-    data_out = dict()
-    data_out["cam0"] = get_camera_info(cali.cam[0])
-    data_out["cam0"]["rostopic"] = "/fisheye/left/image_raw"
-    data_out["cam1"] = get_camera_info(cali.cam[1])
-    data_out["cam1"]["rostopic"] = "/fisheye/right/image_raw"
-    data_out["cam2"] = get_camera_info(cali.cam[2])
-    data_out["cam2"]["rostopic"] = "/fisheye/bright/image_raw"
-    data_out["cam3"] = get_camera_info(cali.cam[3])
-    data_out["cam3"]["rostopic"] = "/fisheye/bleft/image_raw"
-    print(data_out)
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, 'w+') as g:
-        ruamelyaml.dump(as_ros2_parameter_file(data_out), g)
-    print('saved:', output_path)
+def get_kalibr_yaml(cali, path='/tmp/kalibr_cam_chain.yaml'):
+    # 1. 提取四个相机的数据（扁平化矩阵已经在 get_camera_info 处理过了）
+    c0 = get_camera_info(cali.cam[0])
+    c1 = get_camera_info(cali.cam[1])
+    c2 = get_camera_info(cali.cam[2])
+    c3 = get_camera_info(cali.cam[3])
+
+    # 2. 针对 launch 文件中的 4 个 StereoUndistortNodelet 节点名
+    # 每个节点直接获得它需要的 intrinsics, distortion_coeffs 等
+    # 这样节点一启动就能在“根目录”下找到参数，不需要再去 cam0/ 找
+    final_data = {
+        "/front_stereo_undistort": {
+            "ros__parameters": {**c0, "first_camera_namespace": "", "second_camera_namespace": ""}
+        },
+        "/right_stereo_undistort": {
+            "ros__parameters": {**c1, "first_camera_namespace": "", "second_camera_namespace": ""}
+        },
+        "/back_stereo_undistort": {
+            "ros__parameters": {**c2, "first_camera_namespace": "", "second_camera_namespace": ""}
+        },
+        "/left_stereo_undistort": {
+            "ros__parameters": {**c3, "first_camera_namespace": "", "second_camera_namespace": ""}
+        }
+    }
+
+    print(f"Generating flattened ROS 2 parameters to {path}...")
+    with open(path, 'w+') as g:
+        ruamelyaml.dump(final_data, g)
 
 async def cmd_get_cali_cam():
     device_param = DeviceParam(type=1234)

@@ -30,13 +30,7 @@ def generate_launch_description():
     declare_pub_imu_arg = DeclareLaunchArgument('pub_imu', default_value='true')
     declare_time_sync_arg = DeclareLaunchArgument('time_sync', default_value='true')
     
-    # 配置文件路径
-    seeker_share_dir = get_package_share_directory('seeker')
-    declare_config_arg = DeclareLaunchArgument('config', default_value='seeker_omni_depth')
-    
-    default_yaml_path = os.path.join(
-        seeker_share_dir, 'config', 'seeker_omni_depth', 'kalibr_cam_chain.yaml'
-    )
+    default_yaml_path = "/home/iadc/Desktop/seeker_ws/src/seeker1/seeker1/config/kalibr_cam_chain.yaml"
     declare_yaml_path_arg = DeclareLaunchArgument(
         'stereo_params_camchain',
         default_value=default_yaml_path,
@@ -206,7 +200,7 @@ def generate_launch_description():
         declare_scale_arg, declare_process_rate_arg, declare_publish_tf_arg,
         declare_use_img_trans_arg, declare_pub_disp_img_arg, declare_pub_disp_arg,
         declare_pub_imu_arg, declare_time_sync_arg, 
-        declare_config_arg, declare_yaml_path_arg,
+        declare_yaml_path_arg,
         
         container
     ])

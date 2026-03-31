@@ -54,12 +54,24 @@ void ImageConcat::imageCallback(
     if (++frame_count_ < process_every_nth_frame_) return;
     frame_count_ = 0;
 
+    RCLCPP_DEBUG_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000, 
+        "Callback: encoding=%s, w=%d, h=%d", msg0->encoding.c_str(), msg0->width, msg0->height);
+
     try {
+        std::vector<cv_bridge::CvImageConstPtr> bridges(4);
+        bridges[0] = cv_bridge::toCvShare(msg0);
+        bridges[1] = cv_bridge::toCvShare(msg1);
+        bridges[2] = cv_bridge::toCvShare(msg2);
+        bridges[3] = cv_bridge::toCvShare(msg3);
+        
         std::vector<cv::Mat> images(4);
-        images[0] = cv_bridge::toCvShare(msg0, "bgr8")->image;
-        images[1] = cv_bridge::toCvShare(msg1, "bgr8")->image;
-        images[2] = cv_bridge::toCvShare(msg2, "bgr8")->image;
-        images[3] = cv_bridge::toCvShare(msg3, "bgr8")->image;
+        bridges[0]->image.copyTo(images[0]);
+        bridges[1]->image.copyTo(images[1]);
+        bridges[2]->image.copyTo(images[2]);
+        bridges[3]->image.copyTo(images[3]);
+
+        RCLCPP_INFO_ONCE(node_->get_logger(), "First frame processed, image size: %dx%d", 
+            images[0].cols, images[0].rows);
 
         cv::Mat result = processImages(images, concat_method_);
 

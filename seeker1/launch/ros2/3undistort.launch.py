@@ -55,7 +55,7 @@ def generate_launch_description():
     
     # 如果您需要动态路径，可以使用 PythonExpression 或 PathJoinSubstitution
     # 默认读取当前包 share 下的 config/kalibr_cam_chain.yaml
-    default_yaml_path = resolve_default_camchain_path()
+    default_yaml_path = "/home/iadc/Desktop/seeker_ws/src/seeker1/seeker1/config/kalibr_cam_chain.yaml"
     
     declare_yaml_path_arg = DeclareLaunchArgument(
         'stereo_params_camchain',
@@ -67,20 +67,21 @@ def generate_launch_description():
     # 2. 定义组件配置
     # ========================================================================
 
-    # 通用的解畸变参数 (为了减少代码重复)
     def get_undistort_params(first_cam_ns, second_cam_ns, first_out_frame, second_out_frame):
         return [
             {
                 'publish_tf': LaunchConfiguration('publish_tf'),
                 'input_camera_info_from_ros_params': True,
-                'first_camera_namespace': first_cam_ns,
-                'second_camera_namespace': second_cam_ns,
+                # --- 关键修改：改为空字符串，因为 YAML 里已经平铺了 ---
+                'first_camera_namespace': '', 
+                'second_camera_namespace': '',
+                # ----------------------------------------------
                 'scale': LaunchConfiguration('scale'),
                 'process_every_nth_frame': LaunchConfiguration('process_every_nth_frame'),
                 'first_output_frame': first_out_frame,
                 'second_output_frame': second_out_frame,
             },
-            LaunchConfiguration('stereo_params_camchain') # 加载 YAML
+            LaunchConfiguration('stereo_params_camchain') 
         ]
 
     # --- 组件 A: Seeker 驱动 ---

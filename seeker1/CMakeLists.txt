@@ -89,8 +89,4 @@ install(DIRECTORY launch/ros2
   DESTINATION share/${PROJECT_NAME}/launch
 )
 
-install(DIRECTORY config/
-  DESTINATION share/${PROJECT_NAME}/config
-)
-
 ament_package()
